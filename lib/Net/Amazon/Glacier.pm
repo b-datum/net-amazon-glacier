@@ -87,14 +87,16 @@ The functions are intended to closely reflect Amazon's Glacier API. Please see A
 =cut
 
 sub new {
-	my $class = shift;
-	my ( $region, $access_key_id, $secret ) = @_;
-	my $self = {
-		region => $region,
-		ua     => LWP::UserAgent->new(),
-		sig    => Net::Amazon::Signature::V4->new( $access_key_id, $secret, $region, 'glacier' ),
-	};
-	bless $self, $class;
+  my $class = shift;
+  my ( $region, $access_key_id, $secret ) = @_;
+  my $self = {
+    region => $region,
+    ua     => LWP::UserAgent->new(),
+    sig    => Net::Amazon::Signature::V4->new(
+      $access_key_id, $secret, $region, 'glacier'
+    ),
+  };
+  bless $self, $class;
 }
 
 =head1 VAULT OPERATORS
@@ -106,10 +108,10 @@ L<Create Vault (PUT vault)|http://docs.aws.amazon.com/amazonglacier/latest/dev/a
 =cut
 
 sub create_vault {
-	my ( $self, $vault_name ) = @_;
-	croak "no vault name given" unless $vault_name;
-	my $res = $self->_send_receive( PUT => "/-/vaults/$vault_name" );
-	return $res->is_success;
+  my ( $self, $vault_name ) = @_;
+  croak "no vault name given" unless $vault_name;
+  my $res = $self->_send_receive( PUT => "/-/vaults/$vault_name" );
+  return $res->is_success;
 }
 
 =head2 delete_vault( $vault_name )
@@ -119,10 +121,10 @@ L<Delete Vault (DELETE vault)|http://docs.aws.amazon.com/amazonglacier/latest/de
 =cut
 
 sub delete_vault {
-	my ( $self, $vault_name ) = @_;
-	croak "no vault name given" unless $vault_name;
-	my $res = $self->_send_receive( DELETE => "/-/vaults/$vault_name" );
-	return $res->is_success;
+  my ( $self, $vault_name ) = @_;
+  croak "no vault name given" unless $vault_name;
+  my $res = $self->_send_receive( DELETE => "/-/vaults/$vault_name" );
+  return $res->is_success;
 }
 
 =head2 describe_vault( $vault_name )
@@ -133,10 +135,10 @@ L<Describe Vault (GET vault)|http://docs.aws.amazon.com/amazonglacier/latest/dev
 =cut
 
 sub describe_vault {
-	my ( $self, $vault_name ) = @_;
-	croak "no vault name given" unless $vault_name;
-	my $res = $self->_send_receive( GET => "/-/vaults/$vault_name" );
-	return $self->_decode_and_handle_response( $res );
+  my ( $self, $vault_name ) = @_;
+  croak "no vault name given" unless $vault_name;
+  my $res = $self->_send_receive( GET => "/-/vaults/$vault_name" );
+  return $self->_decode_and_handle_response($res);
 }
 
 =head2 list_vaults
@@ -150,18 +152,19 @@ Calls to List Vaults in the API are L<free|http://aws.amazon.com/glacier/pricing
 =cut
 
 sub list_vaults {
-	my ( $self ) = @_;
-	my @vaults;
-	my $marker;
-	do {
-		#1000 is the default limit, send a marker if needed
-		my $res = $self->_send_receive( GET => "/-/vaults?limit=1000" . $marker?'&'.$marker:'');
-		my $decoded = $self->_decode_and_handle_response( $res );
+  my ($self) = @_;
+  my @vaults;
+  my $marker;
+  do {
+    #1000 is the default limit, send a marker if needed
+    my $res = $self->_send_receive(
+      GET => "/-/vaults?limit=1000" . $marker ? '&' . $marker : '' );
+    my $decoded = $self->_decode_and_handle_response($res);
 
-		push @vaults, @{$decoded->{VaultList}};
-		$marker = $decoded->{Marker};
-	} while ( $marker );
-	return ( \@vaults );
+    push @vaults, @{ $decoded->{VaultList} };
+    $marker = $decoded->{Marker};
+  } while ($marker);
+  return ( \@vaults );
 }
 
 =head2 set_vault_notifications( $vault_name, $sns_topic, $events )
@@ -176,26 +179,25 @@ L<Set Vault Notification Configuration (PUT notification-configuration)|http://d
 =cut
 
 sub set_vault_notifications {
-	my ( $self, $vault_name, $sns_topic, $events ) = @_;
-	croak "no vault name given" unless $vault_name;
-	croak "no sns topic given" unless $sns_topic;
-	croak "events should be an array ref" unless ref $events eq 'ARRAY';
-	
-	my $content_raw;
-	
-	$content_raw->{SNSTopic} = $sns_topic
-		if defined($sns_topic);
-	
-	$content_raw->{Events} = $events
-		if defined($events);
-	
-	my $res = $self->_send_receive(
-		PUT => "/-/vaults/$vault_name/notification-configuration",
-		[
-		],
-		encode_json($content_raw),
-	);
-	return $res->is_success;
+  my ( $self, $vault_name, $sns_topic, $events ) = @_;
+  croak "no vault name given"           unless $vault_name;
+  croak "no sns topic given"            unless $sns_topic;
+  croak "events should be an array ref" unless ref $events eq 'ARRAY';
+
+  my $content_raw;
+
+  $content_raw->{SNSTopic} = $sns_topic
+    if defined($sns_topic);
+
+  $content_raw->{Events} = $events
+    if defined($events);
+
+  my $res = $self->_send_receive(
+    PUT => "/-/vaults/$vault_name/notification-configuration",
+    [],
+    encode_json($content_raw),
+  );
+  return $res->is_success;
 }
 
 =head2 get_vault_notifications( $vault_name )
@@ -207,14 +209,13 @@ L<Get Vault Notifications (GET notification-configuration)|http://docs.aws.amazo
 =cut
 
 sub get_vault_notifications {
-	my ( $self, $vault_name, $sns_topic, $events ) = @_;
-	croak "no vault name given" unless $vault_name;
-	
-	my $res = $self->_send_receive(
-		PUT => "/-/vaults/$vault_name/notification-configuration",
-	);
-	return 0 unless $res->is_success;
-	return $self->_decode_and_handle_response( $res );
+  my ( $self, $vault_name, $sns_topic, $events ) = @_;
+  croak "no vault name given" unless $vault_name;
+
+  my $res = $self->_send_receive(
+    PUT => "/-/vaults/$vault_name/notification-configuration", );
+  return 0 unless $res->is_success;
+  return $self->_decode_and_handle_response($res);
 }
 
 =head2 delete_vault_notifications( $vault_name )
@@ -226,13 +227,12 @@ L<Delete Vault Notifications (DELETE notification-configuration)|http://docs.aws
 =cut
 
 sub delete_vault_notifications {
-	my ( $self, $vault_name, $sns_topic, $events ) = @_;
-	croak "no vault name given" unless $vault_name;
-	
-	my $res = $self->_send_receive(
-		DELETE => "/-/vaults/$vault_name/notification-configuration",
-	);
-	return $res->is_success;
+  my ( $self, $vault_name, $sns_topic, $events ) = @_;
+  croak "no vault name given" unless $vault_name;
+
+  my $res = $self->_send_receive(
+    DELETE => "/-/vaults/$vault_name/notification-configuration", );
+  return $res->is_success;
 }
 
 =head1 ARCHIVE OPERATIONS
@@ -245,36 +245,51 @@ L<Upload Archive (POST archive)|http://docs.aws.amazon.com/amazonglacier/latest/
 =cut
 
 sub upload_archive {
-	my ( $self, $vault_name, $archive_path, $description ) = @_;
-	croak "no vault name given" unless $vault_name;
-	croak "no archive path given" unless $archive_path;
-	croak 'archive path is not a file' unless -f $archive_path;
-	$description //= '';
-	my $content = read_file( $archive_path );
+  my ( $self, $vault_name, $archive_path, $description ) = @_;
+  croak "no vault name given"        unless $vault_name;
+  croak "no archive path given"      unless $archive_path;
+  croak 'archive path is not a file' unless -f $archive_path;
+  croak 'file cannot be read'        unless -r $archive_path;
 
-	my $th = Net::Amazon::TreeHash->new();
-	open( my $content_fh, '<', $archive_path ) or croak $!;
-	$th->eat_file( $content_fh );
-	close $content_fh;
-	$th->calc_tree;
+  $description //= '';
 
-	my $res = $self->_send_receive(
-		POST => "/-/vaults/$vault_name/archives",
-		[
-			'x-amz-archive-description' => $description,
-			'x-amz-sha256-tree-hash' => $th->get_final_hash(),
-			'x-amz-content-sha256' => sha256_hex( $content ),
-		],
-		$content
-	);
-	return 0 unless $res->is_success;
-	if ( $res->header('location') =~ m{^/([^/]+)/vaults/([^/]+)/archives/(.*)$} ) {
-		my ( $rec_uid, $rec_vault_name, $rec_archive_id ) = ( $1, $2, $3 );
-		return $rec_archive_id;
-	} else {
-		carp 'request succeeded, but reported archive location does not match regex: ' . $res->header('location');
-		return 0;
-	}
+  open( my $content_fh, '<', $archive_path ) or croak $!;
+  seek( $content_fh, 0, 0 );    # in case something has already read from it
+  my $tree = Net::Amazon::TreeHash->new->eat_file($content_fh);
+  $tree->calc_tree;
+  my $tree_hash = $tree->get_final_hash;
+
+  seek( $content_fh, 0, 0 );
+
+  my $sha256_hex = Digest::SHA->new(256)->addfile($content_fh)->hexdigest;
+  seek( $content_fh, 0, 0 );
+
+  my $res = $self->_send_receive(
+    POST => "/-/vaults/$vault_name/archives",
+    [
+      'x-amz-archive-description' => $description,
+      'x-amz-sha256-tree-hash'    => $tree_hash,
+      'x-amz-content-sha256'      => $sha256_hex
+    ],
+    sub {
+      my $content;
+      read( $content_fh, $content, 1_024**2 );    # 1mb chunks
+      close($content_fh) unless $content;
+      return $content;
+    }
+  );
+  return 0 unless $res->is_success;
+  if ( $res->header('location') =~ m{^/([^/]+)/vaults/([^/]+)/archives/(.*)$} )
+  {
+    my ( $rec_uid, $rec_vault_name, $rec_archive_id ) = ( $1, $2, $3 );
+    return $rec_archive_id;
+  }
+  else {
+    carp
+      'request succeeded, but reported archive location does not match regex: '
+      . $res->header('location');
+    return 0;
+  }
 }
 
 =head2 delete_archive( $vault_name, $archive_id )
@@ -285,11 +300,12 @@ L<Delete Archive (DELETE archive)|http://docs.aws.amazon.com/amazonglacier/lates
 =cut
 
 sub delete_archive {
-	my ( $self, $vault_name, $archive_id ) = @_;
-	croak "no vault name given" unless $vault_name;
-	croak "no archive ID given" unless $archive_id;
-	my $res = $self->_send_receive( DELETE => "/-/vaults/$vault_name/archives/$archive_id" );
-	return $res->is_success;
+  my ( $self, $vault_name, $archive_id ) = @_;
+  croak "no vault name given" unless $vault_name;
+  croak "no archive ID given" unless $archive_id;
+  my $res = $self->_send_receive(
+    DELETE => "/-/vaults/$vault_name/archives/$archive_id" );
+  return $res->is_success;
 }
 
 =head1 JOB OPERATIONS
@@ -306,29 +322,29 @@ L<Initiate a Job (POST jobs)|docs.aws.amazon.com/amazonglacier/latest/dev/api-in
 =cut
 
 sub initiate_archive_retrieval {
-	my ( $self, $vault_name, $archive_id, $description, $sns_topic ) = @_;
-	croak "no vault name given" unless $vault_name;
-	croak "no archive id given" unless $archive_id;
+  my ( $self, $vault_name, $archive_id, $description, $sns_topic ) = @_;
+  croak "no vault name given" unless $vault_name;
+  croak "no archive id given" unless $archive_id;
 
-	my $content_raw = {
-		Type => 'archive-retrieval',
-		ArchiveId => $archive_id,
-	};
+  my $content_raw = {
+    Type      => 'archive-retrieval',
+    ArchiveId => $archive_id,
+  };
 
-	$content_raw->{Description} = $description
-		if defined($description);
+  $content_raw->{Description} = $description
+    if defined($description);
 
-	$content_raw->{SNSTopic} = $sns_topic
-		if defined($sns_topic);
+  $content_raw->{SNSTopic} = $sns_topic
+    if defined($sns_topic);
 
-	my $res = $self->_send_receive(
-		POST => "/-/vaults/$vault_name/jobs",
-		[ ],
-		encode_json($content_raw),
-	);
+  my $res = $self->_send_receive(
+    POST => "/-/vaults/$vault_name/jobs",
+    [],
+    encode_json($content_raw),
+  );
 
-	return 0 unless $res->is_success;
-	return $res->header('x-amz-job-id');
+  return 0 unless $res->is_success;
+  return $res->header('x-amz-job-id');
 }
 
 =head2 initiate_inventory_retrieval( $vault_name, [ $format, $description,
@@ -342,30 +358,28 @@ L<Initiate a Job (POST jobs)|docs.aws.amazon.com/amazonglacier/latest/dev/api-in
 =cut
 
 sub initiate_inventory_retrieval {
-	my ( $self, $vault_name, $format, $description, $sns_topic ) = @_;
-	croak "no vault name given" unless $vault_name;
+  my ( $self, $vault_name, $format, $description, $sns_topic ) = @_;
+  croak "no vault name given" unless $vault_name;
 
-	my $content_raw = {
-		Type => 'inventory-retrieval',
-	};
+  my $content_raw = { Type => 'inventory-retrieval', };
 
-	$content_raw->{Format} = $format
-		if defined($format);
+  $content_raw->{Format} = $format
+    if defined($format);
 
-	$content_raw->{Description} = $description
-		if defined($description);
+  $content_raw->{Description} = $description
+    if defined($description);
 
-	$content_raw->{SNSTopic} = $sns_topic
-		if defined($sns_topic);
+  $content_raw->{SNSTopic} = $sns_topic
+    if defined($sns_topic);
 
-	my $res = $self->_send_receive(
-		POST => "/-/vaults/$vault_name/jobs",
-		[ ],
-		encode_json($content_raw),
-	);
+  my $res = $self->_send_receive(
+    POST => "/-/vaults/$vault_name/jobs",
+    [],
+    encode_json($content_raw),
+  );
 
-	return 0 unless $res->is_success;
-	return $res->header('x-amz-job-id');
+  return 0 unless $res->is_success;
+  return $res->header('x-amz-job-id');
 }
 
 =head2 initiate_job( ( $vault_name, $archive_id, [
@@ -379,7 +393,7 @@ L<Initiate a Job (POST jobs)|http://docs.aws.amazon.com/amazonglacier/latest/dev
 =cut
 
 sub initiate_job {
-	initiate_inventory_retrieval( @_ );
+  initiate_inventory_retrieval(@_);
 }
 
 =head2 describe_job( $vault_name, $job_id )
@@ -390,9 +404,9 @@ L<Amazon Glacier Describe Job (GET JobID)|http://docs.aws.amazon.com/amazonglaci
 =cut
 
 sub describe_job {
-	my ( $self, $vault_name, $job_id ) = @_;
-	my $res = $self->_send_receive( GET => "/-/vaults/$vault_name/jobs/$job_id" );
-	return $self->_decode_and_handle_response( $res );
+  my ( $self, $vault_name, $job_id ) = @_;
+  my $res = $self->_send_receive( GET => "/-/vaults/$vault_name/jobs/$job_id" );
+  return $self->_decode_and_handle_response($res);
 }
 
 =head2 get_job_output( $vault_name, $job_id, [ $range ] )
@@ -404,19 +418,23 @@ L<Amazon Glacier Get Job Output (GET output)|http://docs.aws.amazon.com/amazongl
 =cut
 
 sub get_job_output {
-	my ( $self, $vault_name, $job_id, $range ) = @_;
+  my ( $self, $vault_name, $job_id, $range ) = @_;
 
-	my $headers = [];
+  my $headers = [];
 
-	push @$headers, (Range => $range)
-		if defined($range);
+  push @$headers, ( Range => $range )
+    if defined($range);
 
-	my $res = $self->_send_receive( GET => "/-/vaults/$vault_name/jobs/$job_id/output", $headers );
-	if ( $res->is_success ) {
-		return $res->decoded_content;
-	} else {
-		return undef;
-	}
+  my $res = $self->_send_receive(
+    GET => "/-/vaults/$vault_name/jobs/$job_id/output",
+    $headers
+  );
+  if ( $res->is_success ) {
+    return $res->decoded_content;
+  }
+  else {
+    return undef;
+  }
 }
 
 =head2 list_jobs( $vault_name )
@@ -430,60 +448,69 @@ Calls to List Jobs in the API are L<free|http://aws.amazon.com/glacier/pricing/#
 =cut
 
 sub list_jobs {
-	my ( $self, $vault_name ) = @_;
-	my @completed_jobs;
-	my $marker;
-	do {
-		#1000 is the default limit, send a marker if needed
-		my $res = $self->_send_receive( GET => "/-/vaults/$vault_name/jobs?limit=1000" . $marker?'&'.$marker:'' );
-		my $decoded = $self->_decode_and_handle_response( $res );
-		
-		push @completed_jobs, @{$decoded->{JobList}};
-		$marker = $decoded->{Marker};
-	} while ( $marker );
-	return ( \@completed_jobs );
+  my ( $self, $vault_name ) = @_;
+  my @completed_jobs;
+  my $marker;
+  do {
+    #1000 is the default limit, send a marker if needed
+    my $res = $self->_send_receive(
+      GET => "/-/vaults/$vault_name/jobs?limit=1000" . $marker
+      ? '&' . $marker
+      : ''
+    );
+    my $decoded = $self->_decode_and_handle_response($res);
+
+    push @completed_jobs, @{ $decoded->{JobList} };
+    $marker = $decoded->{Marker};
+  } while ($marker);
+  return ( \@completed_jobs );
 }
 
 # helper functions
 
 sub _decode_and_handle_response {
-	my ( $self, $res ) = @_;
-	if ( $res->is_success ) {
-		return decode_json( $res->decoded_content );
-	} else {
-		return undef;
-	}
+  my ( $self, $res ) = @_;
+  if ( $res->is_success ) {
+    return decode_json( $res->decoded_content );
+  }
+  else {
+    return undef;
+  }
 }
 
 sub _send_receive {
-	my $self = shift;
-	my $req = $self->_craft_request( @_ );
-	return $self->_send_request( $req );
+  my $self = shift;
+  my $req  = $self->_craft_request(@_);
+  return $self->_send_request($req);
 }
 
 sub _craft_request {
-	my ( $self, $method, $url, $header, $content ) = @_;
-	my $host = 'glacier.'.$self->{region}.'.amazonaws.com';
-	my $total_header = [
-		'x-amz-glacier-version' => '2012-06-01',
-		'Host' => $host,
-		'Date' => strftime( '%Y%m%dT%H%M%SZ', gmtime ),
-		$header ? @$header : ()
-	];
-	my $req = HTTP::Request->new( $method => "https://$host$url", $total_header, $content);
-	my $signed_req = $self->{sig}->sign( $req );
-	return $signed_req;
+  my ( $self, $method, $url, $header, $content ) = @_;
+  my $host         = 'glacier.' . $self->{region} . '.amazonaws.com';
+  my $total_header = [
+    'x-amz-glacier-version' => '2012-06-01',
+    'Host'                  => $host,
+    'Date'                  => strftime( '%Y%m%dT%H%M%SZ', gmtime ),
+    $header ? @$header : ()
+  ];
+  my $req = HTTP::Request->new(
+    $method => "https://$host$url",
+    $total_header, $content
+  );
+  my $signed_req = $self->{sig}->sign($req);
+  return $signed_req;
 }
 
 sub _send_request {
-	my ( $self, $req ) = @_;
-	my $res = $self->{ua}->request( $req );
-	if ( $res->is_error ) {
-		my $error = decode_json( $res->decoded_content );
-		carp sprintf 'Non-successful response: %s (%s)', $res->status_line, $error->{code};
-		carp decode_json( $res->decoded_content )->{message};
-	}
-	return $res;
+  my ( $self, $req ) = @_;
+  my $res = $self->{ua}->request($req);
+  if ( $res->is_error ) {
+    my $error = decode_json( $res->decoded_content );
+    carp sprintf 'Non-successful response: %s (%s)', $res->status_line,
+      $error->{code};
+    carp decode_json( $res->decoded_content )->{message};
+  }
+  return $res;
 }
 
 =head1 NOT IMPLEMENTED
@@ -553,4 +580,4 @@ See http://dev.perl.org/licenses/ for more information.
 
 =cut
 
-1; # End of Net::Amazon::Glacier
+1;    # End of Net::Amazon::Glacier
