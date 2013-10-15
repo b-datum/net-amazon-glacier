@@ -481,12 +481,10 @@ sub initiate_multipart_upload {
   croak '$vault_name is required' unless $vault_name;
   croak '$part_size is required'  unless $part_size;
 
-  croak 'part size smaller than mininum allowed (1024kb)'
+  croak '$part_size smaller than mininum allowed (1024kb)'
     if $part_size < 1_024**2;
-  croak 'part size bigger than maximum allowed (4Gb)'
+  croak '$part_size bigger than maximum allowed (4Gb)'
     if $part_size > 4 * ( 1_024**3 );
-  croak 'description is not a valid printable ASCII string'
-    if $description && $description =~ /[[:print:]]+/;
 
   my $res = $self->_send_receive(
     POST => "/-/vaults/$vault_name/multipart-uploads",
@@ -521,6 +519,21 @@ sub list_multipart_uploads {
   } while ($marker);
   return ( \@uploads );
 
+}
+
+=head2 abort_multipart_upload( $vault_name, $upload_id )
+
+Aborts multipart upload specified by $upload_id
+
+=cut
+
+sub abort_multipart_upload {
+  my ( $self, $vault_name, $upload_id ) = @_;
+  croak '$vault_name is required' unless $vault_name;
+  croak '$upload_id is required'  unless $upload_id;
+  my $res = $self->_send_receive(
+    DELETE => "/-/vaults/$vault_name/multipart-uploads/$upload_id" );
+  return $res->is_success;
 }
 
 # helper functions

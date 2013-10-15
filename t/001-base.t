@@ -5,7 +5,6 @@ use warnings;
 
 use Test::More;
 use File::Temp qw(tempfile);
-use Data::Printer;
 
 unless ( $ENV{'AMAZON_GLACIER_EXPENSIVE_TESTS'}
   && $ENV{'AWS_ACCESS_KEY_ID'}
