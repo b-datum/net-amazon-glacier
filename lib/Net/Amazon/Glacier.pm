@@ -158,7 +158,7 @@ sub list_vaults {
   do {
     #1000 is the default limit, send a marker if needed
     my $res = $self->_send_receive(
-      GET => "/-/vaults?limit=1000" . $marker ? '&' . $marker : '' );
+      GET => "/-/vaults?limit=1000" . ( $marker ? '&' . $marker : '' ) );
     my $decoded = $self->_decode_and_handle_response($res);
 
     push @vaults, @{ $decoded->{VaultList} };
@@ -255,7 +255,8 @@ sub upload_archive {
 
   open( my $content_fh, '<', $archive_path ) or croak $!;
   seek( $content_fh, 0, 0 );    # in case something has already read from it
-  my $tree = Net::Amazon::TreeHash->new->eat_file($content_fh);
+  my $tree = Net::Amazon::TreeHash->new;
+  $tree->eat_file($content_fh);
   $tree->calc_tree;
   my $tree_hash = $tree->get_final_hash;
 
@@ -269,7 +270,8 @@ sub upload_archive {
     [
       'x-amz-archive-description' => $description,
       'x-amz-sha256-tree-hash'    => $tree_hash,
-      'x-amz-content-sha256'      => $sha256_hex
+      'x-amz-content-sha256'      => $sha256_hex,
+      'Content-Length'            => -s $archive_path
     ],
     sub {
       my $content;
@@ -466,6 +468,61 @@ sub list_jobs {
   return ( \@completed_jobs );
 }
 
+=head1 MULTIPART UPLOAD
+
+=head2 initiate_multipart_upload( $vault_name, $part_size, [$description] )
+
+Initiates a multipart upload of an archive to the specified vault.
+
+=cut
+
+sub initiate_multipart_upload {
+  my ( $self, $vault_name, $part_size, $description ) = @_;
+  croak '$vault_name is required' unless $vault_name;
+  croak '$part_size is required'  unless $part_size;
+
+  croak 'part size smaller than mininum allowed (1024kb)'
+    if $part_size < 1_024**2;
+  croak 'part size bigger than maximum allowed (4Gb)'
+    if $part_size > 4 * ( 1_024**3 );
+  croak 'description is not a valid printable ASCII string'
+    if $description && $description =~ /[[:print:]]+/;
+
+  my $res = $self->_send_receive(
+    POST => "/-/vaults/$vault_name/multipart-uploads",
+    [
+      ( $description ? ( 'x-amz-archive-description' => $description ) : () ),
+      'x-amz-part-size' => $part_size
+    ]
+
+  );
+  return $res->header('x-amz-multipart-upload-id');
+}
+
+=head2 list_multipart_uploads( $vault_name )
+
+Lists pending multipart uploads of the specified vault.
+
+=cut
+
+sub list_multipart_uploads {
+  my ( $self, $vault_name ) = @_;
+  croak '$vault_name is required' unless $vault_name;
+
+  my @uploads;
+  my $marker;
+  do {
+    my $res = $self->_send_receive(
+      GET => "/-/vaults/$vault_name/multipart-uploads?limit=1000"
+        . ( $marker ? '&' . $marker : '' ) );
+    my $decoded = $self->_decode_and_handle_response($res);
+    push @uploads, @{ $decoded->{UploadsList} };
+    $marker = $decoded->{Marker};
+  } while ($marker);
+  return ( \@uploads );
+
+}
+
 # helper functions
 
 sub _decode_and_handle_response {
@@ -505,6 +562,7 @@ sub _send_request {
   my ( $self, $req ) = @_;
   my $res = $self->{ua}->request($req);
   if ( $res->is_error ) {
+    warn $res->as_string;
     my $error = decode_json( $res->decoded_content );
     carp sprintf 'Non-successful response: %s (%s)', $res->status_line,
       $error->{code};
@@ -512,16 +570,6 @@ sub _send_request {
   }
   return $res;
 }
-
-=head1 NOT IMPLEMENTED
-
-The following parts of Amazon's API have not yet been implemented. This is mainly because the author hasn't had a use for them yet. If you do implement them, feel free to send a patch.
-
-=over 4
-
-=item * Multipart upload operations
-
-=back
 
 =head1 SEE ALSO
 
