@@ -536,6 +536,69 @@ sub abort_multipart_upload {
   return $res->is_success;
 }
 
+=head2 put_part( $vault_name, $upload_id, $content, $range_start, $range_end )
+
+Put multipart upload part
+
+=cut 
+
+sub put_part {
+  my ( $self, $vault_name, $upload_id, $content, $range_start, $range_end ) =
+    @_;
+  croak '$vault_name is required'         unless $vault_name;
+  croak '$upload_id is required'          unless $upload_id;
+  croak '$range_start is required'        unless $range_start;
+  croak '$range_end is required'          unless $range_end;
+  croak '$range_start must be >= 0'       unless $range_start >= 0;
+  croak '$range_end must be > 0'          unless $range_end > 0;
+  croak '$range_end must be > $range_end' unless $range_end > $range_start;
+
+  my $res = $self->_send_receive(
+    PUT => "/-/vaults/$vault_name/multipart-uploads/$upload_id",
+    [ 'Content-Range' => "bytes $range_start-$range_end/*" ],
+    $content
+  );
+  return $res->is_success;
+
+}
+
+=head2 complete_multipart_upload( $vault_name, $upload_id, $archive_path)
+
+Completes multipart upload
+
+=cut
+
+sub complete_multipart_upload {
+  my ( $self, $vault_name, $upload_id, $archive_path ) = @_;
+
+  croak '$vault_name is required'      unless $vault_name;
+  croak '$upload_id is required'       unless $upload_id;
+  croak '$archive_path is required'    unless $archive_path;
+  croak '$archive_path does not exist' unless -e $archive_path;
+  croak '$archive_path cannot be read' unless -r $archive_path;
+
+  open( my $content_fh, '<', $archive_path ) or croak $!;
+  seek( $content_fh, 0, 0 );    # in case something has already read from it
+  my $tree = Net::Amazon::TreeHash->new;
+  $tree->eat_file($content_fh);
+  $tree->calc_tree;
+  my $tree_hash = $tree->get_final_hash;
+  close($content_fh);
+
+  my $res = $self->_send_receive(
+    POST => "/-/vaults/$vault_name/multipart-uploads/$upload_id",
+    [
+      'x-amz-archive-size'        => -s $archive_path,
+      'x-amz-sha256-tree-hash​' => $tree_hash
+    ]
+  );
+
+  return $res->header('x-amz-archive-id')
+    if $res->is_success && $res->header('x-amz-archive-id');
+
+  return;
+}
+
 # helper functions
 
 sub _decode_and_handle_response {
@@ -642,3 +705,4 @@ See http://dev.perl.org/licenses/ for more information.
 =cut
 
 1;    # End of Net::Amazon::Glacier
+## Please see file perltidy.ERR
