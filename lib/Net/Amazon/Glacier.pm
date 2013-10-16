@@ -547,18 +547,32 @@ sub put_part {
     @_;
   croak '$vault_name is required'         unless $vault_name;
   croak '$upload_id is required'          unless $upload_id;
-  croak '$range_start is required'        unless $range_start;
-  croak '$range_end is required'          unless $range_end;
+  croak '$range_start is required'        unless defined $range_start;
+  croak '$range_end is required'          unless defined $range_end;
   croak '$range_start must be >= 0'       unless $range_start >= 0;
   croak '$range_end must be > 0'          unless $range_end > 0;
   croak '$range_end must be > $range_end' unless $range_end > $range_start;
 
+  $content = ref $content ? $$content : $content;
+  my $sha256_hex = sha256_hex($content);
+
+  my $tree = Net::Amazon::TreeHash->new;
+  $tree->eat_data( \$content );
+  $tree->calc_tree;
+  my $tree_hash = $tree->get_final_hash;
+
   my $res = $self->_send_receive(
     PUT => "/-/vaults/$vault_name/multipart-uploads/$upload_id",
-    [ 'Content-Range' => "bytes $range_start-$range_end/*" ],
-    $content
+    [
+      'Content-Range'          => "bytes $range_start-$range_end/*",
+      'x-amz-content-sha256'   => $sha256_hex,
+      'x-amz-sha256-tree-hash' => $tree_hash,
+      'Content-Length'         => length($content)
+    ],
+    \$content
   );
-  return $res->is_success;
+  return $tree_hash if $res->is_success;
+  return;
 
 }
 
@@ -568,29 +582,27 @@ Completes multipart upload
 
 =cut
 
+
 sub complete_multipart_upload {
-  my ( $self, $vault_name, $upload_id, $archive_path ) = @_;
+  my ( $self, $vault_name, $upload_id, $archive_size, @tree_hashes ) = @_;
 
-  croak '$vault_name is required'      unless $vault_name;
-  croak '$upload_id is required'       unless $upload_id;
-  croak '$archive_path is required'    unless $archive_path;
-  croak '$archive_path does not exist' unless -e $archive_path;
-  croak '$archive_path cannot be read' unless -r $archive_path;
+  croak '$vault_name is required'   unless $vault_name;
+  croak '$upload_id is required'    unless $upload_id;
+  croak '$archive_size is required' unless $archive_size;
+  croak 'empty @tree_hashes'        unless @tree_hashes;
 
-  open( my $content_fh, '<', $archive_path ) or croak $!;
-  seek( $content_fh, 0, 0 );    # in case something has already read from it
-  my $tree = Net::Amazon::TreeHash->new;
-  $tree->eat_file($content_fh);
+  my $tree = Net::Amazon::TreeHash->new( size => 32 );
+  my $data = join( '', map { s/(..)/chr(hex($1))/ge; $_ } @tree_hashes );
+  $tree->eat_data( \$data );
   $tree->calc_tree;
   my $tree_hash = $tree->get_final_hash;
-  close($content_fh);
 
   my $res = $self->_send_receive(
     POST => "/-/vaults/$vault_name/multipart-uploads/$upload_id",
     [
-      'x-amz-archive-size'        => -s $archive_path,
+      'x-amz-archive-size'        => $archive_size,
       'x-amz-sha256-tree-hash​' => $tree_hash
-    ]
+    ],
   );
 
   return $res->header('x-amz-archive-id')
@@ -636,9 +648,10 @@ sub _craft_request {
 
 sub _send_request {
   my ( $self, $req ) = @_;
+
   my $res = $self->{ua}->request($req);
+
   if ( $res->is_error ) {
-    warn $res->as_string;
     my $error = decode_json( $res->decoded_content );
     carp sprintf 'Non-successful response: %s (%s)', $res->status_line,
       $error->{code};

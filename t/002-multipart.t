@@ -41,8 +41,8 @@ is(
     'get multipart uploads list' );
   is( scalar @$uploads, 0, 'no uploads' );
 
-  # $glacier->abort_multipart_upload( $test_vault_name, $_ )
-  #   for map { $_->{MultipartUploadId} } @$uploads;
+  $glacier->abort_multipart_upload( $test_vault_name, $_ )
+    for map { $_->{MultipartUploadId} } @$uploads;
 }
 
 my $upload_id;
@@ -93,11 +93,48 @@ diag 'Aborting...';
   is( scalar @$uploads, 0, '0 uploads - aborted successfuly' );
 }
 
-# my ( $fh, $filename ) = tempfile( CLEANUP => 0 );
+{
 
-# my $content = 'x' x (1_024**2 + 200); # 1mb + 200 bytes
-# print $fh $content;
-# close($fh);
+  my $part_1 = 'c' x 1_024**2;
+  my $part_2 = 'c' x 200;
+  my $size   = length($part_1);
 
-# unlink $filename if -e $filename;
+  ok(
+    $upload_id = $glacier->initiate_multipart_upload(
+      $test_vault_name, $size, 'some description'
+    ),
+    'multipart upload initiated'
+  );
+
+  my @trees;
+  my $current_tree_hash;
+
+  ok(
+    $current_tree_hash = $glacier->put_part(
+      $test_vault_name, $upload_id, $part_1, 0, length($part_1) - 1
+    ),
+    'multipart part 1 sent'
+  );
+
+  push @trees, $current_tree_hash;
+
+  ok(
+    $current_tree_hash = $glacier->put_part(
+      $test_vault_name, $upload_id,
+      $part_2,          length($part_1),
+      length( $part_1 . $part_2 ) - 1
+    ),
+    'multipart part 2 sent'
+  );
+
+  push @trees, $current_tree_hash;
+
+  ok(
+    my $archive_id = $glacier->complete_multipart_upload(
+      $test_vault_name, $upload_id, length( $part_1 . $part_2 ), @trees
+    )
+  );
+
+}
+
 done_testing;
