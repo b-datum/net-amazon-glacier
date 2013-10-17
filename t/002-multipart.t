@@ -101,7 +101,7 @@ diag 'Aborting...';
 
   ok(
     $upload_id = $glacier->initiate_multipart_upload(
-      $test_vault_name, $size, 'some description'
+      $test_vault_name, $size, 'desc'
     ),
     'multipart upload initiated'
   );

@@ -582,6 +582,7 @@ Completes multipart upload
 
 =cut
 
+use Data::Printer;
 
 sub complete_multipart_upload {
   my ( $self, $vault_name, $upload_id, $archive_size, @tree_hashes ) = @_;
@@ -591,9 +592,8 @@ sub complete_multipart_upload {
   croak '$archive_size is required' unless $archive_size;
   croak 'empty @tree_hashes'        unless @tree_hashes;
 
-  my $tree = Net::Amazon::TreeHash->new( size => 32 );
-  my $data = join( '', map { s/(..)/chr(hex($1))/ge; $_ } @tree_hashes );
-  $tree->eat_data( \$data );
+  my $tree = Net::Amazon::TreeHash->new();
+  $tree->eat_treehash( [ map { pack "H*", $_ } @tree_hashes ] );
   $tree->calc_tree;
   my $tree_hash = $tree->get_final_hash;
 
@@ -601,7 +601,7 @@ sub complete_multipart_upload {
     POST => "/-/vaults/$vault_name/multipart-uploads/$upload_id",
     [
       'x-amz-archive-size'        => $archive_size,
-      'x-amz-sha256-tree-hash​' => $tree_hash
+      'x-amz-sha256-tree-hash' => $tree_hash
     ],
   );
 
