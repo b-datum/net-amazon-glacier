@@ -253,17 +253,22 @@ sub upload_archive {
 
   $description //= '';
 
+  my $tree_hash;
   open( my $content_fh, '<', $archive_path ) or croak $!;
   seek( $content_fh, 0, 0 );    # in case something has already read from it
-  my $tree = Net::Amazon::TreeHash->new;
-  $tree->eat_file($content_fh);
-  $tree->calc_tree;
-  my $tree_hash = $tree->get_final_hash;
-
-  seek( $content_fh, 0, 0 );
-
   my $sha256_hex = Digest::SHA->new(256)->addfile($content_fh)->hexdigest;
   seek( $content_fh, 0, 0 );
+
+  if ( -s $archive_path == 0 ) {
+    $tree_hash = $sha256_hex;
+  }
+  else {
+    my $tree = Net::Amazon::TreeHash->new;
+    $tree->eat_file($content_fh);
+    $tree->calc_tree;
+    $tree_hash = $tree->get_final_hash;
+    seek( $content_fh, 0, 0 );
+  }
 
   my $res = $self->_send_receive(
     POST => "/-/vaults/$vault_name/archives",
@@ -558,6 +563,7 @@ sub put_part {
 
   my $tree = Net::Amazon::TreeHash->new;
   $tree->eat_data( \$content );
+
   $tree->calc_tree;
   my $tree_hash = $tree->get_final_hash;
 
@@ -582,8 +588,6 @@ Completes multipart upload
 
 =cut
 
-use Data::Printer;
-
 sub complete_multipart_upload {
   my ( $self, $vault_name, $upload_id, $archive_size, @tree_hashes ) = @_;
 
@@ -600,7 +604,7 @@ sub complete_multipart_upload {
   my $res = $self->_send_receive(
     POST => "/-/vaults/$vault_name/multipart-uploads/$upload_id",
     [
-      'x-amz-archive-size'        => $archive_size,
+      'x-amz-archive-size'     => $archive_size,
       'x-amz-sha256-tree-hash' => $tree_hash
     ],
   );
